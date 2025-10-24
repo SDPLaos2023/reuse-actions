@@ -65,14 +65,14 @@ jobs:
           Write-Host "========================================" -ForegroundColor Cyan
 
       - name: Build .NET Application
-        uses: ./reuse-actions/actions/build/dotnet-build.yaml
+        uses: ./reuse-actions/actions/build/dotnet-build
         with:
           source_code_path: "project/${{ inputs.source_code_path }}"
           configuration: "Release"
           publish_output_path: "${{ inputs.publish_output_path }}"
 
       - name: Deploy to IIS
-        uses: ./reuse-actions/actions/deploy/iis-dotnet-deploy.yaml
+        uses: ./reuse-actions/actions/deploy/iis-dotnet-deploy
         with:
           exclude_files: ${{ inputs.exclude_files }}
           app_pool: ${{ inputs.app_pool }}
