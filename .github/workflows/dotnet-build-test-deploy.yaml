@@ -2,10 +2,6 @@ name: "Build test and Deploy .NET Application to IIS"
 
 on:
   workflow_call:
-    secrets:
-      GH_ORG_PAT:
-        required: true
-        description: "GitHub Personal Access Token for accessing private repositories"
     inputs:
       run_on:
         description: "Runner labels to use"
