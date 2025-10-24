@@ -3,9 +3,9 @@ name: "Build test and Deploy .NET Application to IIS"
 on:
   workflow_call:
     secrets:
-      token:
-        required: false
-        description: "GitHub token for accessing private repositories"
+      GH_ORG_PAT:
+        required: true
+        description: "GitHub Personal Access Token for accessing private repositories"
     inputs:
       run_on:
         description: "Runner labels to use"
@@ -49,32 +49,34 @@ jobs:
     steps:
       - name: Checkout project repository
         uses: actions/checkout@v4
+        with:
+          path: project
 
       - name: Checkout reuse-actions repository
         uses: actions/checkout@v4
         with:
           repository: SDPLaos2023/reuse-actions
-          token: ${{ secrets.token || github.token }}
-          path: .github/reuse-actions
+          token: ${{ secrets.GH_ORG_PAT }}
+          path: reuse-actions
           ref: main
 
       - name: Build .NET Application
-        uses: ./.github/reuse-actions/actions/build/dotnet-build.yaml
+        uses: ./reuse-actions/actions/build/dotnet-build.yaml
         with:
-          source_code_path: "${{ inputs.source_code_path }}"
+          source_code_path: "project/${{ inputs.source_code_path }}"
           configuration: "Release"
           publish_output_path: "${{ inputs.publish_output_path }}"
 
       - name: Deploy to IIS
-        uses: ./.github/reuse-actions/actions/deploy/iis-dotnet-deploy.yaml
+        uses: ./reuse-actions/actions/deploy/iis-dotnet-deploy.yaml
         with:
           exclude_files: ${{ inputs.exclude_files }}
           app_pool: ${{ inputs.app_pool }}
           deploy_path: ${{ inputs.deploy_path }}
-          source_path: "${{ inputs.source_code_path }}/${{ inputs.publish_output_path }}"
+          source_path: "project/${{ inputs.source_code_path }}/${{ inputs.publish_output_path }}"
 
       - name: Create Semantic Version Tag
-        uses: ./.github/reuse-actions/actions/git/create-sematic-tag.yaml
+        uses: ./reuse-actions/actions/git/create-sematic-tag.yaml
         with:
           bump_type: "${{ inputs.bump_type }}"
-          source_code_path: "${{ inputs.source_code_path }}"
+          source_code_path: "project/${{ inputs.source_code_path }}"
