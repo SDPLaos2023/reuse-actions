@@ -32,7 +32,7 @@ on:
         description: "IIS Deployment path"
         required: false
         type: string
-        default: "C:\inetpub\wwwroot\Dcc-Dev"
+        default: 'C:\inetpub\wwwroot\Dcc-Dev'
       bump_type:
         description: "Version bump type (patch, minor, major)"
         required: false

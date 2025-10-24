@@ -36,7 +36,7 @@ on:
         description: "IIS Deployment path"
         required: false
         type: string
-        default: "C:\inetpub\wwwroot\Dcc-Dev"
+        default: 'C:\inetpub\wwwroot\Dcc-Dev'
 
 jobs:
   deploy_from_tag:
