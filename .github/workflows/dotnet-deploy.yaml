@@ -46,14 +46,15 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: ${{ inputs.tag_version }}
-      
+
       - name: Checkout reuse-actions repository
         uses: actions/checkout@v4
         with:
           repository: SDPLaos2023/reuse-actions
+          token: ${{ github.token }}
           path: .github/reuse-actions
           ref: main
-      
+
       - name: Display deployment info
         shell: powershell
         run: |
@@ -61,14 +62,14 @@ jobs:
           Write-Host "Deploying tag: ${{ inputs.tag_version }}" -ForegroundColor Magenta
           Write-Host "Target: ${{ inputs.deploy_path }}" -ForegroundColor Yellow
           Write-Host "========================================" -ForegroundColor Cyan
-      
+
       - name: Build .NET Application
         uses: ./.github/reuse-actions/actions/build/dotnet-build.yaml
         with:
           source_code_path: "${{ inputs.source_code_path }}"
           configuration: "Release"
           publish_output_path: "${{ inputs.publish_output_path }}"
-      
+
       - name: Deploy to IIS
         uses: ./.github/reuse-actions/actions/deploy/iis-dotnet-deploy.yaml
         with:
