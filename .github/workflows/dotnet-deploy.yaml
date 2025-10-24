@@ -1,0 +1,78 @@
+name: "Deploy .NET Application from Tag"
+
+on:
+  workflow_call:
+    inputs:
+      run_on:
+        description: "Runner labels to use"
+        required: false
+        type: string
+        default: "dev"
+      tag_version:
+        description: "Tag version to deploy (e.g., v1.0.0)"
+        required: true
+        type: string
+      source_code_path:
+        description: "Path to the source code"
+        required: false
+        type: string
+        default: "./"
+      publish_output_path:
+        description: "Path to publish output"
+        required: false
+        type: string
+        default: "publish"
+      exclude_files:
+        description: "Files to exclude during deployment"
+        required: false
+        type: string
+        default: "appsettings.Development.json appsettings.json web.config"
+      app_pool:
+        description: "IIS Application Pool name"
+        required: false
+        type: string
+        default: "DCC-test"
+      deploy_path:
+        description: "IIS Deployment path"
+        required: false
+        type: string
+        default: "C:\inetpub\wwwroot\Dcc-Dev"
+
+jobs:
+  deploy_from_tag:
+    runs-on: ["self-hosted", "${{ inputs.run_on }}"]
+    steps:
+      - name: Checkout specific tag
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag_version }}
+      
+      - name: Checkout reuse-actions repository
+        uses: actions/checkout@v4
+        with:
+          repository: SDPLaos2023/reuse-actions
+          path: .github/reuse-actions
+          ref: main
+      
+      - name: Display deployment info
+        shell: powershell
+        run: |
+          Write-Host "========================================" -ForegroundColor Cyan
+          Write-Host "Deploying tag: ${{ inputs.tag_version }}" -ForegroundColor Magenta
+          Write-Host "Target: ${{ inputs.deploy_path }}" -ForegroundColor Yellow
+          Write-Host "========================================" -ForegroundColor Cyan
+      
+      - name: Build .NET Application
+        uses: ./.github/reuse-actions/actions/build/dotnet-build.yaml
+        with:
+          source_code_path: "${{ inputs.source_code_path }}"
+          configuration: "Release"
+          publish_output_path: "${{ inputs.publish_output_path }}"
+      
+      - name: Deploy to IIS
+        uses: ./.github/reuse-actions/actions/deploy/iis-dotnet-deploy.yaml
+        with:
+          exclude_files: ${{ inputs.exclude_files }}
+          app_pool: ${{ inputs.app_pool }}
+          deploy_path: ${{ inputs.deploy_path }}
+          source_path: "${{ inputs.source_code_path }}/${{ inputs.publish_output_path }}"

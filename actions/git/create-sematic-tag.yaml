@@ -1,0 +1,81 @@
+name: "Create Semantic Tag"
+description: "Create and push a semantic version tag based on the specified bump type."
+
+inputs:
+  bump_type:
+    description: "Type of version bump (patch, minor, major)"
+    required: false
+    default: "patch"
+  source_code_path:
+    description: "Path to the source code repository"
+    required: false
+    default: "./"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Create and push Git tag
+      shell: powershell
+      env:
+        BUMP_TYPE: ${{ inputs.bump_type }}
+        SOURCE_PATH: ${{ inputs.source_code_path }}
+      run: |
+        $ErrorActionPreference = "Continue"
+
+        # Navigate to source code path if specified
+        if ($env:SOURCE_PATH -and $env:SOURCE_PATH -ne "./") {
+          Set-Location -Path $env:SOURCE_PATH
+        }
+
+        git config user.name "GitHub Actions Bot" 2>&1 | Out-Null
+        git config user.email "actions@github.com" 2>&1 | Out-Null
+
+        $remoteTags = git ls-remote --tags origin 2>&1 |
+          Where-Object { $_ -match 'refs/tags/v\d+\.\d+\.\d+$' } |
+          ForEach-Object { ($_ -split 'refs/tags/')[-1] }
+
+        $latestTag = $remoteTags |
+          Where-Object { $_ -match '^v\d+\.\d+\.\d+$' } |
+          Sort-Object { [version]($_ -replace '^v', '') } -Descending |
+          Select-Object -First 1
+
+        $bumpType = if ($env:BUMP_TYPE) { $env:BUMP_TYPE } else { "patch" }
+
+        if ($latestTag) {
+          $version = [version]($latestTag -replace '^v', '')
+          switch ($bumpType.ToLower()) {
+            "major" { $newVersion = "v$($version.Major + 1).0.0"; $desc = "Major" }
+            "minor" { $newVersion = "v$($version.Major).$($version.Minor + 1).0"; $desc = "Minor" }
+            default { $newVersion = "v$($version.Major).$($version.Minor).$($version.Build + 1)"; $desc = "Patch" }
+          }
+        } else {
+          $newVersion = "v1.0.0"
+          $desc = "Initial"
+        }
+
+        $hash = git rev-parse --short HEAD 2>&1
+        $msg = git log -1 --pretty=%B 2>&1
+        $time = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+        $nl = [System.Environment]::NewLine
+        $tagMsg = "Deployment $newVersion$nl${nl}Type: $desc$nl" +
+                  "Deployed: C:\inetpub\wwwroot\Dcc-Dev$nl" +
+                  "Time: $time$nl" +
+                  "Commit: $hash$nl" +
+                  "Message: $msg"
+
+        git tag -a $newVersion -m $tagMsg 2>&1 | Out-Null
+
+        if ($LASTEXITCODE -eq 0) {
+          $pushResult = git push origin $newVersion 2>&1
+          if ($LASTEXITCODE -eq 0) {
+            Write-Output "Tag created and pushed: $newVersion"
+            exit 0
+          } else {
+            Write-Output "Push failed, retrying with force..."
+            git push origin $newVersion --force 2>&1 | Out-Null
+          }
+        } else {
+          Write-Output "Failed to create tag"
+          git tag -d $newVersion 2>&1 | Out-Null
+          exit 1
+        }

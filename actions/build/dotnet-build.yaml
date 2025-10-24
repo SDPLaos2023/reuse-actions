@@ -1,0 +1,44 @@
+name: "Build and Test .NET Application"
+description: "Builds a .NET application to be tested and deployed to IIS."
+
+inputs:
+  source_code_path:
+    description: "Path to the .NET project"
+    required: false
+    default: "./"
+  configuration:
+    description: "Build configuration"
+    required: false
+    default: "Release"
+  publish_output_path:
+    description: "Output directory for published application"
+    required: false
+    default: "publish"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Restore dependencies
+      shell: powershell
+      run: |
+        Set-Location -Path ${{ inputs.source_code_path }}
+        dotnet restore
+
+    - name: Build project
+      shell: powershell
+      run: |
+        Set-Location -Path ${{ inputs.source_code_path }}
+        dotnet build --configuration ${{ inputs.configuration }} --no-restore
+
+    - name: Run tests
+      shell: powershell
+      run: |
+        Set-Location -Path ${{ inputs.source_code_path }}
+        dotnet test --no-build --verbosity normal
+
+    - name: Publish app
+      shell: powershell
+      run: |
+        Set-Location -Path ${{ inputs.source_code_path }}
+        dotnet publish -c ${{ inputs.configuration }} -o ${{ inputs.publish_output_path }}
+        ls

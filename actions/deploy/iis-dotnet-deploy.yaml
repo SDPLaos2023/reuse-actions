@@ -1,0 +1,119 @@
+name: "Deploy to IIS"
+description: "Deploy application to IIS using robocopy"
+
+inputs:
+  exclude_files:
+    description: "Files to exclude from deployment (space separated)"
+    required: false
+    default: "appsettings.Development.json appsettings.json web.config"
+  app_pool:
+    description: "IIS Application Pool name"
+    required: false
+    default: "DCC-test"
+  deploy_path:
+    description: "IIS deployment path"
+    required: false
+    default: 'C:\inetpub\wwwroot\Dcc-Dev'
+  source_path:
+    description: "Source path for deployment"
+    required: false
+    default: 'Doccontrol\publish'
+
+runs:
+  using: "composite"
+  steps:
+    - name: Execute IIS deployment
+      shell: powershell
+      env:
+        EXCLUDE_FILES: ${{ inputs.exclude_files }}
+        APP_POOL: ${{ inputs.app_pool }}
+        DEPLOY_PATH: ${{ inputs.deploy_path }}
+        SOURCE_PATH: ${{ inputs.source_path }}
+      run: |
+        $AppPool = $env:APP_POOL
+        $DeployPath = $env:DEPLOY_PATH
+        $SourcePath = $env:SOURCE_PATH
+
+        # Stop App Pool
+        Try {
+            Stop-WebAppPool -Name $AppPool -ErrorAction Stop
+            Start-Sleep -Seconds 5
+        } Catch {
+            Write-Warning "App Pool $AppPool could not be stopped or already stopped."
+        }
+
+        # Prepare robocopy exclude
+        $excludeFiles = @()
+        if ($env:EXCLUDE_FILES) {
+            $excludeFiles = $env:EXCLUDE_FILES -split ' '
+        }
+
+        $robocopyArgs = @($SourcePath, $DeployPath, "/MIR")
+        if ($excludeFiles.Count -gt 0) {
+            $robocopyArgs += "/XF"
+            $robocopyArgs += $excludeFiles
+        }
+
+        # Add logging for robocopy operations
+        $logFile = Join-Path $env:TEMP "robocopy_$(Get-Date -Format 'yyyyMMdd_HHmmss').log"
+        $robocopyArgs += "/LOG:$logFile"
+        $robocopyArgs += "/TEE"
+        $robocopyArgs += "/NP"
+
+        $deploymentFailed = $false
+        Try {
+            Write-Host "========================================" -ForegroundColor Cyan
+            Write-Host "Starting robocopy deployment..." -ForegroundColor Cyan
+            Write-Host "Source: $SourcePath" -ForegroundColor Yellow
+            Write-Host "Destination: $DeployPath" -ForegroundColor Yellow
+            Write-Host "Excluded files: $($excludeFiles -join ', ')" -ForegroundColor Yellow
+            Write-Host "Log file: $logFile" -ForegroundColor Yellow
+            Write-Host "========================================" -ForegroundColor Cyan
+            
+            robocopy @robocopyArgs
+            $rc = $env:LASTEXITCODE
+            
+            Write-Host "`n========================================" -ForegroundColor Cyan
+            Write-Host "Robocopy exit code: $rc" -ForegroundColor $(if ($rc -le 7) { "Green" } else { "Red" })
+            
+            if ($rc -le 7) {
+                $exitCodeMeaning = switch ($rc) {
+                    0 { "No files were copied. No failure was encountered. No files were mismatched." }
+                    1 { "All files were copied successfully." }
+                    2 { "There are some additional files in the destination directory that are not present in the source." }
+                    3 { "Some files were copied. Additional files were present." }
+                    4 { "Some Mismatched files or directories were detected." }
+                    5 { "Some files were copied. Some files were mismatched." }
+                    6 { "Additional files and mismatched files exist." }
+                    7 { "Files were copied, a file mismatch was present, and additional files were present." }
+                    default { "Success" }
+                }
+                Write-Host "Status: SUCCESS - $exitCodeMeaning" -ForegroundColor Green
+            } else {
+                $deploymentFailed = $true
+                Write-Host "Status: FAILED - Robocopy encountered errors (code $rc > 7)" -ForegroundColor Red
+                Write-Host "`nLast 20 lines of log file:" -ForegroundColor Yellow
+                if (Test-Path $logFile) {
+                    Get-Content $logFile -Tail 20 | ForEach-Object { Write-Host $_ -ForegroundColor Gray }
+                }
+            }
+            Write-Host "========================================`n" -ForegroundColor Cyan
+        } Finally {
+            # Always try to start the app pool
+            Write-Host "Attempting to start App Pool: $AppPool" -ForegroundColor Cyan
+            Try {
+                Start-WebAppPool -Name $AppPool -ErrorAction Stop
+                Write-Host "App Pool '$AppPool' started successfully." -ForegroundColor Green
+            } Catch {
+                Write-Warning "App Pool '$AppPool' could not be started: $_"
+                Write-Warning "Please check IIS Manager manually."
+            }
+            
+            if ($deploymentFailed) {
+                Write-Error "Deployment failed with robocopy exit code $rc. See log: $logFile"
+                exit $rc
+            } else {
+                Write-Host "Deployment completed successfully" -ForegroundColor Green
+                exit 0
+            }
+        }

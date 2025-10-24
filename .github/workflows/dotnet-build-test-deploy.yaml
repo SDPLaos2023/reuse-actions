@@ -1,0 +1,75 @@
+name: "Build test and Deploy .NET Application to IIS"
+
+on:
+  workflow_call:
+    inputs:
+      run_on:
+        description: "Runner labels to use"
+        required: false
+        type: string
+        default: "dev"
+      source_code_path:
+        description: "Path to the source code"
+        required: false
+        type: string
+        default: "./"
+      publish_output_path:
+        description: "Path to publish output"
+        required: false
+        type: string
+        default: "publish"
+      exclude_files:
+        description: "Files to exclude during deployment"
+        required: false
+        type: string
+        default: "appsettings.Development.json appsettings.json web.config"
+      app_pool:
+        description: "IIS Application Pool name"
+        required: false
+        type: string
+        default: "DCC-test"
+      deploy_path:
+        description: "IIS Deployment path"
+        required: false
+        type: string
+        default: "C:\inetpub\wwwroot\Dcc-Dev"
+      bump_type:
+        description: "Version bump type (patch, minor, major)"
+        required: false
+        type: string
+        default: "patch"
+
+jobs:
+  build_and_deploy:
+    runs-on: ["self-hosted", "${{ inputs.run_on }}"]
+    steps:
+      - name: Checkout project repository
+        uses: actions/checkout@v4
+      
+      - name: Checkout reuse-actions repository
+        uses: actions/checkout@v4
+        with:
+          repository: SDPLaos2023/reuse-actions
+          path: .github/reuse-actions
+          ref: main
+      
+      - name: Build .NET Application
+        uses: ./.github/reuse-actions/actions/build/dotnet-build.yaml
+        with:
+          source_code_path: "${{ inputs.source_code_path }}"
+          configuration: "Release"
+          publish_output_path: "${{ inputs.publish_output_path }}"
+      
+      - name: Deploy to IIS
+        uses: ./.github/reuse-actions/actions/deploy/iis-dotnet-deploy.yaml
+        with:
+          exclude_files: ${{ inputs.exclude_files }}
+          app_pool: ${{ inputs.app_pool }}
+          deploy_path: ${{ inputs.deploy_path }}
+          source_path: "${{ inputs.source_code_path }}/${{ inputs.publish_output_path }}"
+      
+      - name: Create Semantic Version Tag
+        uses: ./.github/reuse-actions/actions/git/create-sematic-tag.yaml
+        with:
+          bump_type: "${{ inputs.bump_type }}"
+          source_code_path: "${{ inputs.source_code_path }}"
