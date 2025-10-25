@@ -48,7 +48,10 @@ runs:
             $excludeFiles = $env:EXCLUDE_FILES -split ' '
         }
 
-        $robocopyArgs = @($SourcePath, $DeployPath, "/MIR")
+        # Use /E instead of /MIR to preserve files/folders in destination that don't exist in source
+        # /E = Copy subdirectories, including empty ones
+        # /XO = Exclude older files (don't overwrite newer files in destination)
+        $robocopyArgs = @($SourcePath, $DeployPath, "/E", "/XO")
         if ($excludeFiles.Count -gt 0) {
             $robocopyArgs += "/XF"
             $robocopyArgs += $excludeFiles
