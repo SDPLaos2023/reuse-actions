@@ -47,6 +47,8 @@ jobs:
         uses: actions/checkout@v4
         with:
           path: project
+          fetch-depth: 1
+          submodules: false
 
       - name: Checkout reuse-actions repository
         uses: actions/checkout@v4
