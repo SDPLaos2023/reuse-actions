@@ -5,5 +5,6 @@
   - `Set-ADUser -Identity "github-runner" -PasswordNeverExpires $true` ตั้งค่า password ไม่ให้หมดอายุ
   - Add user github-runner เข้าไปใน Local policy ให้สิทธิ์ Log on as a service
     - เข้าไปที่ Local Security Policy > Local Policies > User Rights Assignment > Log on as a service > เพิ่ม user github-runner เข้าไป
+  - `net localgroup Administrators <user> /add`
 - หลังจากนั้นตั้งติด Document ของ Github ได้เลย
   - ในขั้นตอนการรัน service ให้เลือกใช้ user <Domain>\github-runner ที่สร้างขึ้นมา (ชื่อจะสามารถดูได้จากผลลัพธ์หลังจากการ Add user เข้าไปใน Log on as a service)
