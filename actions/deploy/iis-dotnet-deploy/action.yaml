@@ -26,8 +26,10 @@ runs:
       shell: powershell
       env:
         DEPLOY_PATH: ${{ inputs.deploy_path }}
+        APP_POOL: ${{ inputs.app_pool }}
       run: |
         $DeployPath = $env:DEPLOY_PATH
+        $AppPool = $env:APP_POOL
         $timestamp = Get-Date -Format 'yyyyMMdd_HHmmss'
 
         # Extract project name from deploy path (e.g., "Dcc-Dev" from "C:\inetpub\wwwroot\Dcc-Dev")
@@ -42,11 +44,22 @@ runs:
         }
 
         Write-Host "========================================" -ForegroundColor Cyan
-        Write-Host "Creating backup of existing deployment..." -ForegroundColor Cyan
+        Write-Host "Preparing backup of existing deployment..." -ForegroundColor Cyan
 
         if (Test-Path $DeployPath) {
+            # Stop App Pool before backup
+            Write-Host "Stopping App Pool: $AppPool" -ForegroundColor Yellow
+            Try {
+                Stop-WebAppPool -Name $AppPool -ErrorAction Stop
+                Start-Sleep -Seconds 5
+                Write-Host "App Pool stopped successfully." -ForegroundColor Green
+            } Catch {
+                Write-Warning "App Pool $AppPool could not be stopped or already stopped."
+            }
+            
             Try {
                 # Compress deployment to zip
+                Write-Host "Creating backup..." -ForegroundColor Yellow
                 Compress-Archive -Path "$DeployPath\*" -DestinationPath $BackupZip -Force -ErrorAction Stop
                 Write-Host "Backup created successfully: $BackupZip" -ForegroundColor Green
                 
@@ -73,6 +86,17 @@ runs:
                 Write-Host "========================================" -ForegroundColor Red
                 Write-Error "CRITICAL: Failed to create backup: $_"
                 Write-Error "Deployment ABORTED for safety - cannot proceed without valid backup."
+                
+                # Start App Pool back before exiting
+                Write-Host "Starting App Pool back: $AppPool" -ForegroundColor Yellow
+                Try {
+                    Start-WebAppPool -Name $AppPool -ErrorAction Stop
+                    Write-Host "App Pool '$AppPool' started successfully." -ForegroundColor Green
+                } Catch {
+                    Write-Error "Failed to start App Pool '$AppPool': $_"
+                    Write-Error "Please check IIS Manager manually."
+                }
+                
                 Write-Host "========================================" -ForegroundColor Red
                 exit 1
             }
@@ -92,14 +116,6 @@ runs:
         $AppPool = $env:APP_POOL
         $DeployPath = $env:DEPLOY_PATH
         $SourcePath = $env:SOURCE_PATH
-
-        # Stop App Pool
-        Try {
-            Stop-WebAppPool -Name $AppPool -ErrorAction Stop
-            Start-Sleep -Seconds 5
-        } Catch {
-            Write-Warning "App Pool $AppPool could not be stopped or already stopped."
-        }
 
         # Prepare robocopy exclude
         $excludeFiles = @()
