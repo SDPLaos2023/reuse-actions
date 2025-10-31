@@ -77,8 +77,8 @@ runs:
                         Remove-Item -Path $BackupPath -Recurse -Force -ErrorAction Stop
                         Write-Host "Uncompressed backup removed to save space" -ForegroundColor Gray
                         
-                        # Store backup zip path for later use
-                        echo "BACKUP_ZIP_PATH=$BackupZip" >> $env:GITHUB_ENV
+                        # Store backup zip path for later use (with quotes for paths with spaces)
+                        Add-Content -Path $env:GITHUB_ENV -Value "BACKUP_ZIP_PATH=$BackupZip"
                     } else {
                         throw "Failed to create zip file"
                     }
