@@ -68,22 +68,28 @@ runs:
                 if ($rc -le 7) {
                     Write-Host "Backup folder created successfully: $BackupPath" -ForegroundColor Green
                     
+                    # Verify backup folder exists before compressing
+                    if (-not (Test-Path -LiteralPath $BackupPath)) {
+                        throw "Backup folder not found at: $BackupPath"
+                    }
+                    
                     # Step 2: Compress backup to save space
                     Write-Host "Step 2: Compressing backup to save space..." -ForegroundColor Yellow
                     Write-Host "Source: $BackupPath" -ForegroundColor Gray
                     Write-Host "Target: $BackupZip" -ForegroundColor Gray
                     
-                    Compress-Archive -Path "$BackupPath\*" -DestinationPath $BackupZip -Force -ErrorAction Stop
+                    # Use LiteralPath to handle special characters properly
+                    Compress-Archive -LiteralPath $BackupPath -DestinationPath $BackupZip -Force -ErrorAction Stop
                     
                     # Verify zip file
-                    if (Test-Path $BackupZip) {
+                    if (Test-Path -LiteralPath $BackupZip) {
                         $zipSize = (Get-Item $BackupZip).Length / 1MB
                         Write-Host "Backup compressed successfully: $BackupZip" -ForegroundColor Green
                         Write-Host "Compressed size: $([math]::Round($zipSize, 2)) MB" -ForegroundColor Cyan
                         
                         # Remove uncompressed backup folder to save space
                         Try {
-                            Remove-Item -Path $BackupPath -Recurse -Force -ErrorAction Stop
+                            Remove-Item -LiteralPath $BackupPath -Recurse -Force -ErrorAction Stop
                             Write-Host "Uncompressed backup removed to save space" -ForegroundColor Gray
                         } Catch {
                             Write-Warning "Could not remove uncompressed backup: $_"
