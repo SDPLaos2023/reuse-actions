@@ -31,11 +31,16 @@ runs:
         $timestamp = Get-Date -Format 'yyyyMMdd_HHmmss'
 
         # Extract project name from deploy path and replace spaces with underscores
-        $projectName = Split-Path -Path $DeployPath -Leaf
-        $projectName = $projectName -replace ' ', '_'
+        $projectNameOriginal = Split-Path -Path $DeployPath -Leaf
+        $projectName = $projectNameOriginal -replace ' ', '_'
+
+        Write-Host "Project: $projectNameOriginal -> $projectName" -ForegroundColor Cyan
 
         $BackupDir = "C:/BackupDeployment/$projectName"
         $BackupPath = "$BackupDir/Backup-$timestamp"
+        $BackupZip = "$BackupPath.zip"
+
+        Write-Host "Backup will be created at: $BackupZip" -ForegroundColor Cyan
 
         # Create backup directory if not exists
         if (-not (Test-Path $BackupDir)) {
@@ -65,7 +70,9 @@ runs:
                     
                     # Step 2: Compress backup to save space
                     Write-Host "Step 2: Compressing backup to save space..." -ForegroundColor Yellow
-                    $BackupZip = "$BackupPath.zip"
+                    Write-Host "Source: $BackupPath" -ForegroundColor Gray
+                    Write-Host "Target: $BackupZip" -ForegroundColor Gray
+                    
                     Compress-Archive -Path "$BackupPath\*" -DestinationPath $BackupZip -Force -ErrorAction Stop
                     
                     # Verify zip file
