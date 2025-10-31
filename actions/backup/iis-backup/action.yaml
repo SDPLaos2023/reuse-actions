@@ -20,6 +20,7 @@ runs:
       env:
         DEPLOY_PATH: ${{ inputs.deploy_path }}
       run: |
+        $AppPool = $env:APP_POOL
         $DeployPath = $env:DEPLOY_PATH
         $timestamp = Get-Date -Format "yyyyMMdd_HHmmss"
 
@@ -47,29 +48,31 @@ runs:
 
         if (Test-Path $DeployPath) {
             Try {
-                Write-Host ""
+                Write-Host "`n========================================" -ForegroundColor Cyan
                 Write-Host "Step 1: Copying files with Robocopy (VSS enabled)..." -ForegroundColor Yellow
-
+                
                 # Robocopy with VSS support - no downtime needed
+                # /MIR = Mirror directory, /B = Backup mode (VSS), /R:3 = Retry 3 times
+                # /W:5 = Wait 5 seconds, /NFL /NDL = No file/dir list, /NP = No progress
+                # /XD = Exclude directories: Logs, Temp, Backup, App_Data\Temp
                 $robocopyArgs = @(
                     $DeployPath, $BackupPath,
-                    "/MIR",          # Mirror directory
-                    "/B",            # Backup mode (VSS)
-                    "/R:3",          # Retry 3 times
-                    "/W:5",          # Wait 5 seconds between retries
-                    "/NFL", "/NDL",  # No file/dir list (reduce output)
-                    "/NP",           # No progress
-                    "/XD", "Logs", "Temp", "Backup", "App_Data\Temp"  # Exclude folders
+                    "/MIR",
+                    "/B",
+                    "/R:3",
+                    "/W:5",
+                    "/NFL", "/NDL",
+                    "/NP",
+                    "/XD", "Logs", "Temp", "Backup", "App_Data\Temp"
                 )
-
+                
                 robocopy @robocopyArgs
                 $rc = $LASTEXITCODE
 
                 if ($rc -le 7) {
                     Write-Host "✓ Backup folder created successfully" -ForegroundColor Green
 
-                    Write-Host ""
-                    Write-Host "Step 2: Compressing to ZIP..." -ForegroundColor Yellow
+                    Write-Host "`nStep 2: Compressing to ZIP..." -ForegroundColor Yellow
                     Compress-Archive -LiteralPath $BackupPath -DestinationPath $BackupZip -Force -ErrorAction Stop
 
                     if (Test-Path -LiteralPath $BackupZip) {
@@ -87,8 +90,7 @@ runs:
                     $oldBackups = Get-ChildItem -Path $BackupDir -Filter "Backup-*.zip" -ErrorAction SilentlyContinue |
                                   Sort-Object LastWriteTime -Descending | Select-Object -Skip 5
                     if ($oldBackups) {
-                        Write-Host ""
-                        Write-Host "Cleaning old backups (keeping latest 5)..." -ForegroundColor Yellow
+                        Write-Host "`nCleaning old backups (keeping latest 5)..." -ForegroundColor Yellow
                         $oldBackups | ForEach-Object {
                             Remove-Item $_.FullName -Force -ErrorAction SilentlyContinue
                             Write-Host "  Removed: $($_.Name)" -ForegroundColor Gray
@@ -98,30 +100,23 @@ runs:
                     # Set output
                     Write-Output "BACKUP_PATH=$BackupZip" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
 
-                    Write-Host ""
-                    Write-Host "========================================" -ForegroundColor Cyan
+                    Write-Host "`n========================================" -ForegroundColor Cyan
                     Write-Host "Backup completed successfully!" -ForegroundColor Green
                     Write-Host "Location: $BackupZip" -ForegroundColor Cyan
-                    Write-Host "========================================" -ForegroundColor Cyan
-                    Write-Host ""
+                    Write-Host "========================================`n" -ForegroundColor Cyan
                 } else {
                     throw "Robocopy failed with exit code: $rc"
                 }
             } Catch {
-                Write-Host ""
-                Write-Host "========================================" -ForegroundColor Red
+                Write-Host "`n========================================" -ForegroundColor Red
                 Write-Error "CRITICAL: Backup failed: $_"
-                Write-Host "========================================" -ForegroundColor Red
+                Write-Host "========================================`n" -ForegroundColor Red
                 exit 1
             }
         } else {
-            Write-Host ""
-            Write-Host "No existing deployment found at: $DeployPath" -ForegroundColor Yellow
+            Write-Host "`nNo existing deployment found at: $DeployPath" -ForegroundColor Yellow
             Write-Host "This appears to be a first-time deployment. Skipping backup." -ForegroundColor Yellow
-            Write-Host ""
-            Write-Host "========================================" -ForegroundColor Cyan
-            Write-Host ""
+            Write-Host "========================================`n" -ForegroundColor Cyan
         }
 
         exit 0
-
