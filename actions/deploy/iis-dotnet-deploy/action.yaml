@@ -26,17 +26,15 @@ runs:
       shell: powershell
       env:
         DEPLOY_PATH: ${{ inputs.deploy_path }}
-        APP_POOL: ${{ inputs.app_pool }}
       run: |
         $DeployPath = $env:DEPLOY_PATH
-        $AppPool = $env:APP_POOL
         $timestamp = Get-Date -Format 'yyyyMMdd_HHmmss'
 
         # Extract project name from deploy path (e.g., "Dcc-Dev" from "C:\inetpub\wwwroot\Dcc-Dev")
         $projectName = Split-Path -Path $DeployPath -Leaf
 
         $BackupDir = "C:/BackupDeployment/$projectName"
-        $BackupZip = "$BackupDir/Backup-$timestamp.zip"
+        $BackupPath = "$BackupDir/Backup-$timestamp"
 
         # Create backup directory if not exists
         if (-not (Test-Path $BackupDir)) {
@@ -44,59 +42,65 @@ runs:
         }
 
         Write-Host "========================================" -ForegroundColor Cyan
-        Write-Host "Preparing backup of existing deployment..." -ForegroundColor Cyan
+        Write-Host "Creating backup of existing deployment..." -ForegroundColor Cyan
 
         if (Test-Path $DeployPath) {
-            # Stop App Pool before backup
-            Write-Host "Stopping App Pool: $AppPool" -ForegroundColor Yellow
             Try {
-                Stop-WebAppPool -Name $AppPool -ErrorAction Stop
-                Start-Sleep -Seconds 5
-                Write-Host "App Pool stopped successfully." -ForegroundColor Green
-            } Catch {
-                Write-Warning "App Pool $AppPool could not be stopped or already stopped."
-            }
-            
-            Try {
-                # Compress deployment to zip
-                Write-Host "Creating backup..." -ForegroundColor Yellow
-                Compress-Archive -Path "$DeployPath\*" -DestinationPath $BackupZip -Force -ErrorAction Stop
-                Write-Host "Backup created successfully: $BackupZip" -ForegroundColor Green
+                # Use Robocopy with VSS support to backup without stopping app pool
+                # /MIR = Mirror (copy all, delete what doesn't exist in source)
+                # /B = Backup mode (bypass file locks using VSS)
+                # /R:3 = Retry 3 times on failure
+                # /W:5 = Wait 5 seconds between retries
+                # /NFL /NDL = No file/directory list in output (reduce log size)
+                Write-Host "Step 1: Using Robocopy to backup (with VSS support - no downtime)..." -ForegroundColor Yellow
+                $robocopyArgs = @($DeployPath, $BackupPath, "/MIR", "/B", "/R:3", "/W:5", "/NFL", "/NDL", "/NP")
                 
-                # Verify backup file exists and is not empty
-                if (-not (Test-Path $BackupZip) -or (Get-Item $BackupZip).Length -eq 0) {
-                    throw "Backup file is invalid or empty"
-                }
+                robocopy @robocopyArgs
+                $rc = $LASTEXITCODE
                 
-                # Store backup path for later use
-                echo "BACKUP_ZIP_PATH=$BackupZip" >> $env:GITHUB_ENV
-                
-                # Clean old backups for this project (keep last 5)
-                $oldBackups = Get-ChildItem -Path $BackupDir -Filter "Backup-*.zip" | 
-                              Sort-Object LastWriteTime -Descending | 
-                              Select-Object -Skip 5
-                if ($oldBackups) {
-                    Write-Host "Cleaning up old backups for $projectName (keeping last 5)..." -ForegroundColor Yellow
-                    $oldBackups | ForEach-Object {
-                        Remove-Item $_.FullName -Force
-                        Write-Host "  Removed: $($_.Name)" -ForegroundColor Gray
+                # Robocopy exit codes: 0-7 = success, 8+ = error
+                if ($rc -le 7) {
+                    Write-Host "Backup folder created successfully: $BackupPath" -ForegroundColor Green
+                    
+                    # Step 2: Compress backup to save space
+                    Write-Host "Step 2: Compressing backup to save space..." -ForegroundColor Yellow
+                    $BackupZip = "$BackupPath.zip"
+                    Compress-Archive -Path "$BackupPath\*" -DestinationPath $BackupZip -Force -ErrorAction Stop
+                    
+                    # Verify zip file
+                    if (Test-Path $BackupZip) {
+                        $zipSize = (Get-Item $BackupZip).Length / 1MB
+                        Write-Host "Backup compressed successfully: $BackupZip" -ForegroundColor Green
+                        Write-Host "Compressed size: $([math]::Round($zipSize, 2)) MB" -ForegroundColor Cyan
+                        
+                        # Remove uncompressed backup folder to save space
+                        Remove-Item -Path $BackupPath -Recurse -Force -ErrorAction Stop
+                        Write-Host "Uncompressed backup removed to save space" -ForegroundColor Gray
+                        
+                        # Store backup zip path for later use
+                        echo "BACKUP_ZIP_PATH=$BackupZip" >> $env:GITHUB_ENV
+                    } else {
+                        throw "Failed to create zip file"
                     }
+                    
+                    # Clean old backups for this project (keep last 5)
+                    $oldBackups = Get-ChildItem -Path $BackupDir -Filter "Backup-*.zip" | 
+                                  Sort-Object LastWriteTime -Descending | 
+                                  Select-Object -Skip 5
+                    if ($oldBackups) {
+                        Write-Host "Cleaning up old backups for $projectName (keeping last 5)..." -ForegroundColor Yellow
+                        $oldBackups | ForEach-Object {
+                            Remove-Item $_.FullName -Force
+                            Write-Host "  Removed: $($_.Name)" -ForegroundColor Gray
+                        }
+                    }
+                } else {
+                    throw "Robocopy failed with exit code: $rc"
                 }
             } Catch {
                 Write-Host "========================================" -ForegroundColor Red
                 Write-Error "CRITICAL: Failed to create backup: $_"
                 Write-Error "Deployment ABORTED for safety - cannot proceed without valid backup."
-                
-                # Start App Pool back before exiting
-                Write-Host "Starting App Pool back: $AppPool" -ForegroundColor Yellow
-                Try {
-                    Start-WebAppPool -Name $AppPool -ErrorAction Stop
-                    Write-Host "App Pool '$AppPool' started successfully." -ForegroundColor Green
-                } Catch {
-                    Write-Error "Failed to start App Pool '$AppPool': $_"
-                    Write-Error "Please check IIS Manager manually."
-                }
-                
                 Write-Host "========================================" -ForegroundColor Red
                 exit 1
             }
@@ -116,6 +120,16 @@ runs:
         $AppPool = $env:APP_POOL
         $DeployPath = $env:DEPLOY_PATH
         $SourcePath = $env:SOURCE_PATH
+
+        # Stop App Pool before deployment
+        Write-Host "Stopping App Pool: $AppPool" -ForegroundColor Yellow
+        Try {
+            Stop-WebAppPool -Name $AppPool -ErrorAction Stop
+            Start-Sleep -Seconds 5
+            Write-Host "App Pool stopped successfully." -ForegroundColor Green
+        } Catch {
+            Write-Warning "App Pool $AppPool could not be stopped or already stopped."
+        }
 
         # Prepare robocopy exclude
         $excludeFiles = @()
@@ -188,18 +202,34 @@ runs:
                     Try {
                         Write-Host "Restoring from backup: $backupZipPath" -ForegroundColor Yellow
                         
+                        # Extract zip to temp location first
+                        $tempRestorePath = "$env:TEMP\RestoreBackup_$(Get-Date -Format 'yyyyMMdd_HHmmss')"
+                        Write-Host "Extracting backup..." -ForegroundColor Yellow
+                        Expand-Archive -Path $backupZipPath -DestinationPath $tempRestorePath -Force -ErrorAction Stop
+                        
                         # Delete everything in deployment folder
                         if (Test-Path $DeployPath) {
                             Write-Host "Clearing deployment folder..." -ForegroundColor Yellow
                             Remove-Item -Path "$DeployPath\*" -Recurse -Force -ErrorAction Stop
                         }
                         
-                        # Extract backup to restore previous version completely
-                        Write-Host "Extracting backup files..." -ForegroundColor Yellow
-                        Expand-Archive -Path $backupZipPath -DestinationPath $DeployPath -Force -ErrorAction Stop
+                        # Copy extracted files back to deployment
+                        Write-Host "Restoring files..." -ForegroundColor Yellow
+                        $rollbackArgs = @($tempRestorePath, $DeployPath, "/MIR", "/R:3", "/W:5", "/NFL", "/NDL", "/NP")
+                        robocopy @rollbackArgs
+                        $rollbackRc = $LASTEXITCODE
                         
-                        Write-Host "Rollback completed successfully!" -ForegroundColor Green
-                        Write-Host "Application restored to previous version (100% from backup)." -ForegroundColor Green
+                        # Clean up temp folder
+                        if (Test-Path $tempRestorePath) {
+                            Remove-Item -Path $tempRestorePath -Recurse -Force -ErrorAction SilentlyContinue
+                        }
+                        
+                        if ($rollbackRc -le 7) {
+                            Write-Host "Rollback completed successfully!" -ForegroundColor Green
+                            Write-Host "Application restored to previous version (100% from backup)." -ForegroundColor Green
+                        } else {
+                            throw "Robocopy rollback failed with exit code: $rollbackRc"
+                        }
                     } Catch {
                         Write-Error "Rollback failed: $_"
                         Write-Error "Manual intervention required. Backup location: $backupZipPath"
