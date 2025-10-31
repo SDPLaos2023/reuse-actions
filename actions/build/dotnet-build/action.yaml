@@ -48,5 +48,5 @@ runs:
     - name: Publish app
       shell: powershell
       run: |
-        dotnet publish "$env:CSPROJ_PATH" -c ${{ inputs.configuration }} -o ${{ inputs.publish_output_path }}
+        dotnet publish "$env:CSPROJ_PATH" -c ${{ inputs.configuration }} -o ${{ inputs.source_code_path }}/${{ inputs.publish_output_path }}
         ls
