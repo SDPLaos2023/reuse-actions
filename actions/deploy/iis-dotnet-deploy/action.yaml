@@ -146,6 +146,7 @@ runs:
             Write-Host "This appears to be a first-time deployment." -ForegroundColor Yellow
         }
         Write-Host "========================================`n" -ForegroundColor Cyan
+        exit 0
     - name: Execute IIS deployment
       shell: powershell
       env:
