@@ -70,7 +70,19 @@ runs:
                 if ($rc -le 7) {
                     Write-Host "Success: Backup folder created" -ForegroundColor Green
                     Write-Host "`nStep 2: Compressing to ZIP..." -ForegroundColor Yellow
-                    Compress-Archive -LiteralPath $BackupPath -DestinationPath $BackupZip -Force -ErrorAction Stop
+                    
+                    # Check if 7-Zip is available (much faster than Compress-Archive)
+                    $7zipPath = "C:\Program Files\7-Zip\7z.exe"
+                    if (Test-Path $7zipPath) {
+                        Write-Host "Using 7-Zip for faster compression..." -ForegroundColor Cyan
+                        & $7zipPath a -tzip -mx5 $BackupZip $BackupPath -r | Out-Null
+                        if ($LASTEXITCODE -ne 0) {
+                            throw "7-Zip compression failed with exit code: $LASTEXITCODE"
+                        }
+                    } else {
+                        Write-Host "7-Zip not found, using PowerShell Compress-Archive (slower)..." -ForegroundColor Yellow
+                        Compress-Archive -LiteralPath $BackupPath -DestinationPath $BackupZip -Force -ErrorAction Stop
+                    }
 
                     if (Test-Path -LiteralPath $BackupZip) {
                         $zipSize = (Get-Item $BackupZip).Length / 1MB
