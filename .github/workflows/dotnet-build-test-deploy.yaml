@@ -78,8 +78,8 @@ jobs:
           deploy_path: ${{ inputs.deploy_path }}
           source_path: "project/${{ inputs.source_code_path }}/${{ inputs.publish_output_path }}"
 
-      # - name: Create Semantic Version Tag
-      #   uses: ./reuse-actions/actions/git/create-sematic-tag
-      #   with:
-      #     bump_type: "${{ inputs.bump_type }}"
-      #     source_code_path: "project/${{ inputs.source_code_path }}"
+      - name: Create Semantic Version Tag
+        uses: ./reuse-actions/actions/git/create-sematic-tag
+        with:
+          bump_type: "${{ inputs.bump_type }}"
+          source_code_path: "project/${{ inputs.source_code_path }}"
