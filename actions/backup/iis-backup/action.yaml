@@ -39,8 +39,6 @@ runs:
         $BackupPath = "$BackupDir/Backup-$timestamp"
         $BackupZip = "$BackupPath.zip"
 
-        Write-Host "Backup target: $BackupZip" -ForegroundColor Cyan
-
         # Create backup directory
         if (-not (Test-Path $BackupDir)) {
             New-Item -Path $BackupDir -ItemType Directory -Force | Out-Null
@@ -48,9 +46,6 @@ runs:
 
         if (Test-Path $DeployPath) {
             Try {
-                Write-Host "`n========================================" -ForegroundColor Cyan
-                Write-Host "Step 1: Copying files with Robocopy (VSS enabled)..." -ForegroundColor Yellow
-                
                 # Robocopy with VSS support - no downtime needed
                 # /MIR = Mirror directory, /B = Backup mode (VSS), /R:3 = Retry 3 times
                 # /W:5 = Wait 5 seconds, /NFL /NDL = No file/dir list, /NP = No progress
@@ -70,18 +65,11 @@ runs:
                 $rc = $LASTEXITCODE
 
                 if ($rc -le 7) {
-                    Write-Host "✓ Backup folder created successfully" -ForegroundColor Green
-
-                    Write-Host "`nStep 2: Compressing to ZIP..." -ForegroundColor Yellow
                     Compress-Archive -LiteralPath $BackupPath -DestinationPath $BackupZip -Force -ErrorAction Stop
 
                     if (Test-Path -LiteralPath $BackupZip) {
-                        $zipSize = (Get-Item $BackupZip).Length / 1MB
-                        Write-Host "✓ Compressed: $([math]::Round($zipSize, 2)) MB" -ForegroundColor Green
-
                         # Remove uncompressed folder
                         Remove-Item -LiteralPath $BackupPath -Recurse -Force -ErrorAction SilentlyContinue
-                        Write-Host "✓ Removed uncompressed backup folder" -ForegroundColor Gray
                     } else {
                         throw "Failed to create ZIP file"
                     }
@@ -90,10 +78,8 @@ runs:
                     $oldBackups = Get-ChildItem -Path $BackupDir -Filter "Backup-*.zip" -ErrorAction SilentlyContinue |
                                   Sort-Object LastWriteTime -Descending | Select-Object -Skip 5
                     if ($oldBackups) {
-                        Write-Host "`nCleaning old backups (keeping latest 5)..." -ForegroundColor Yellow
                         $oldBackups | ForEach-Object {
                             Remove-Item $_.FullName -Force -ErrorAction SilentlyContinue
-                            Write-Host "  Removed: $($_.Name)" -ForegroundColor Gray
                         }
                     }
 
