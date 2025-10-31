@@ -1,0 +1,117 @@
+name: "Backup IIS Deployment"
+description: "Create a compressed backup of IIS deployment with VSS support"
+
+inputs:
+  deploy_path:
+    description: "IIS deployment path to backup"
+    required: true
+
+outputs:
+  backup_path:
+    description: "Path to the backup ZIP file"
+    value: ${{ steps.backup.outputs.backup_path }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Create backup
+      id: backup
+      shell: powershell
+      env:
+        DEPLOY_PATH: ${{ inputs.deploy_path }}
+      run: |
+        $DeployPath = $env:DEPLOY_PATH
+        $timestamp = Get-Date -Format 'yyyyMMdd_HHmmss'
+
+        # Extract project name from deploy path and sanitize
+        $projectNameOriginal = Split-Path -Path $DeployPath -Leaf
+        $projectName = $projectNameOriginal -replace ' ', '_'
+
+        Write-Host "========================================" -ForegroundColor Cyan
+        Write-Host "IIS Backup Utility" -ForegroundColor Cyan
+        Write-Host "========================================" -ForegroundColor Cyan
+        Write-Host "Project: $projectNameOriginal -> $projectName" -ForegroundColor Yellow
+        Write-Host "Deploy Path: $DeployPath" -ForegroundColor Gray
+
+        # Backup location is automatically determined from deploy path
+        $BackupDir = "C:/BackupDeployment/$projectName"
+        $BackupPath = "$BackupDir/Backup-$timestamp"
+        $BackupZip = "$BackupPath.zip"
+
+        Write-Host "Backup target: $BackupZip" -ForegroundColor Cyan
+
+        # Create backup directory
+        if (-not (Test-Path $BackupDir)) {
+            New-Item -Path $BackupDir -ItemType Directory -Force | Out-Null
+        }
+
+        if (Test-Path $DeployPath) {
+            Try {
+                Write-Host "`nStep 1: Copying files with Robocopy (VSS enabled)..." -ForegroundColor Yellow
+                
+                # Robocopy with VSS support - no downtime needed
+                $robocopyArgs = @(
+                    $DeployPath, $BackupPath,
+                    "/MIR",          # Mirror directory
+                    "/B",            # Backup mode (VSS)
+                    "/R:3",          # Retry 3 times
+                    "/W:5",          # Wait 5 seconds between retries
+                    "/NFL", "/NDL",  # No file/dir list (reduce output)
+                    "/NP",           # No progress
+                    "/XD", "Logs", "Temp", "Backup", "App_Data\Temp"  # Exclude folders
+                )
+                
+                robocopy @robocopyArgs
+                $rc = $LASTEXITCODE
+
+                if ($rc -le 7) {
+                    Write-Host "✓ Backup folder created successfully" -ForegroundColor Green
+
+                    Write-Host "`nStep 2: Compressing to ZIP..." -ForegroundColor Yellow
+                    Compress-Archive -LiteralPath $BackupPath -DestinationPath $BackupZip -Force -ErrorAction Stop
+
+                    if (Test-Path -LiteralPath $BackupZip) {
+                        $zipSize = (Get-Item $BackupZip).Length / 1MB
+                        Write-Host "✓ Compressed: $([math]::Round($zipSize, 2)) MB" -ForegroundColor Green
+
+                        # Remove uncompressed folder
+                        Remove-Item -LiteralPath $BackupPath -Recurse -Force -ErrorAction SilentlyContinue
+                        Write-Host "✓ Removed uncompressed backup folder" -ForegroundColor Gray
+                    } else {
+                        throw "Failed to create ZIP file"
+                    }
+
+                    # Clean old backups (keep last 5)
+                    $oldBackups = Get-ChildItem -Path $BackupDir -Filter "Backup-*.zip" -ErrorAction SilentlyContinue |
+                                  Sort-Object LastWriteTime -Descending | Select-Object -Skip 5
+                    if ($oldBackups) {
+                        Write-Host "`nCleaning old backups (keeping latest 5)..." -ForegroundColor Yellow
+                        $oldBackups | ForEach-Object {
+                            Remove-Item $_.FullName -Force -ErrorAction SilentlyContinue
+                            Write-Host "  Removed: $($_.Name)" -ForegroundColor Gray
+                        }
+                    }
+
+                    # Set output
+                    Write-Host "BACKUP_PATH=$BackupZip" >> $env:GITHUB_OUTPUT
+
+                    Write-Host "`n========================================" -ForegroundColor Cyan
+                    Write-Host "Backup completed successfully!" -ForegroundColor Green
+                    Write-Host "Location: $BackupZip" -ForegroundColor Cyan
+                    Write-Host "========================================`n" -ForegroundColor Cyan
+                } else {
+                    throw "Robocopy failed with exit code: $rc"
+                }
+            } Catch {
+                Write-Host "`n========================================" -ForegroundColor Red
+                Write-Error "CRITICAL: Backup failed: $_"
+                Write-Host "========================================" -ForegroundColor Red
+                exit 1
+            }
+        } else {
+            Write-Host "`nNo existing deployment found at: $DeployPath" -ForegroundColor Yellow
+            Write-Host "This appears to be a first-time deployment. Skipping backup." -ForegroundColor Yellow
+            Write-Host "`n========================================`n" -ForegroundColor Cyan
+        }
+
+        exit 0

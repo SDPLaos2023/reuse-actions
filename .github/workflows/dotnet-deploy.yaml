@@ -71,8 +71,13 @@ jobs:
           configuration: "Release"
           publish_output_path: "${{ inputs.publish_output_path }}"
 
+      - name: Backup existing deployment
+        uses: ./reuse-actions/actions/backup/iis-backup
+        with:
+          deploy_path: ${{ inputs.deploy_path }}
+
       - name: Deploy to IIS
-        uses: ./reuse-actions/actions/deploy/iis-dotnet-deploy
+        uses: ./reuse-actions/actions/deploy/iis-deploy-with-rollback
         with:
           exclude_files: ${{ inputs.exclude_files }}
           app_pool: ${{ inputs.app_pool }}

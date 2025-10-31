@@ -1,0 +1,34 @@
+# Example: How to use separated backup and deploy actions
+
+name: Deploy to IIS with Backup
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: self-hosted
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Build application
+        run: dotnet publish -c Release -o ./publish
+
+      # Step 1: Backup existing deployment (backup path is auto-generated)
+      - name: Backup existing deployment
+        uses: ./reuse-actions/actions/backup/iis-backup
+        with:
+          deploy_path: 'C:\inetpub\wwwroot\MyApp'
+
+      # Step 2: Deploy with automatic rollback on failure (finds backup automatically)
+      - name: Deploy to IIS
+        uses: ./reuse-actions/actions/deploy/iis-deploy-with-rollback
+        with:
+          app_pool: "MyApp-Pool"
+          deploy_path: 'C:\inetpub\wwwroot\MyApp'
+          source_path: "./publish"
+          exclude_files: "appsettings.Development.json web.config"
