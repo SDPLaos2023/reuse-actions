@@ -43,8 +43,7 @@ runs:
     - name: Run tests
       shell: powershell
       run: |
-        Set-Location -Path ${{ inputs.source_code_path }}
-        dotnet test --no-build --verbosity normal
+        dotnet test "$env:CSPROJ_PATH" --configuration ${{ inputs.configuration }} --no-build --verbosity normal
 
     - name: Publish app
       shell: powershell
