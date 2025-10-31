@@ -75,25 +75,43 @@ runs:
                         Write-Host "Compressed size: $([math]::Round($zipSize, 2)) MB" -ForegroundColor Cyan
                         
                         # Remove uncompressed backup folder to save space
-                        Remove-Item -Path $BackupPath -Recurse -Force -ErrorAction Stop
-                        Write-Host "Uncompressed backup removed to save space" -ForegroundColor Gray
+                        Try {
+                            Remove-Item -Path $BackupPath -Recurse -Force -ErrorAction Stop
+                            Write-Host "Uncompressed backup removed to save space" -ForegroundColor Gray
+                        } Catch {
+                            Write-Warning "Could not remove uncompressed backup: $_"
+                            Write-Warning "Continuing anyway..."
+                        }
                         
-                        # Store backup zip path for later use (with quotes for paths with spaces)
-                        Add-Content -Path $env:GITHUB_ENV -Value "BACKUP_ZIP_PATH=$BackupZip"
+                        # Store backup zip path for later use
+                        Try {
+                            Add-Content -Path $env:GITHUB_ENV -Value "BACKUP_ZIP_PATH=$BackupZip" -ErrorAction Stop
+                            Write-Host "Backup path stored for rollback: $BackupZip" -ForegroundColor Gray
+                        } Catch {
+                            Write-Warning "Could not store backup path to GITHUB_ENV: $_"
+                            # Store in environment variable as fallback
+                            $env:BACKUP_ZIP_PATH = $BackupZip
+                            Write-Host "Backup path stored in environment variable instead" -ForegroundColor Gray
+                        }
                     } else {
                         throw "Failed to create zip file"
                     }
                     
                     # Clean old backups for this project (keep last 5)
-                    $oldBackups = Get-ChildItem -Path $BackupDir -Filter "Backup-*.zip" | 
-                                  Sort-Object LastWriteTime -Descending | 
-                                  Select-Object -Skip 5
-                    if ($oldBackups) {
-                        Write-Host "Cleaning up old backups for $projectName (keeping last 5)..." -ForegroundColor Yellow
-                        $oldBackups | ForEach-Object {
-                            Remove-Item $_.FullName -Force
-                            Write-Host "  Removed: $($_.Name)" -ForegroundColor Gray
+                    Try {
+                        $oldBackups = Get-ChildItem -Path $BackupDir -Filter "Backup-*.zip" -ErrorAction SilentlyContinue | 
+                                      Sort-Object LastWriteTime -Descending | 
+                                      Select-Object -Skip 5
+                        if ($oldBackups) {
+                            Write-Host "Cleaning up old backups for $projectName (keeping last 5)..." -ForegroundColor Yellow
+                            $oldBackups | ForEach-Object {
+                                Remove-Item $_.FullName -Force -ErrorAction SilentlyContinue
+                                Write-Host "  Removed: $($_.Name)" -ForegroundColor Gray
+                            }
                         }
+                    } Catch {
+                        Write-Warning "Could not clean old backups: $_"
+                        Write-Warning "Continuing anyway..."
                     }
                 } else {
                     throw "Robocopy failed with exit code: $rc"
