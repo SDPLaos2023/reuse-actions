@@ -28,11 +28,11 @@ runs:
         $projectNameOriginal = Split-Path -Path $DeployPath -Leaf
         $projectName = $projectNameOriginal -replace " ", "_"
 
-        Write-Host "========================================" -ForegroundColor Cyan
-        Write-Host "IIS Backup Utility" -ForegroundColor Cyan
-        Write-Host "========================================" -ForegroundColor Cyan
-        Write-Host "Project: $projectNameOriginal -> $projectName" -ForegroundColor Yellow
-        Write-Host "Deploy Path: $DeployPath" -ForegroundColor Gray
+        # Write-Host "========================================" -ForegroundColor Cyan
+        # Write-Host "IIS Backup Utility" -ForegroundColor Cyan
+        # Write-Host "========================================" -ForegroundColor Cyan
+        # Write-Host "Project: $projectNameOriginal -> $projectName" -ForegroundColor Yellow
+        # Write-Host "Deploy Path: $DeployPath" -ForegroundColor Gray
 
         # Backup location is automatically determined from deploy path
         $BackupDir = "C:/BackupDeployment/$projectName"
