@@ -22,6 +22,65 @@ inputs:
 runs:
   using: "composite"
   steps:
+    - name: Backup existing deployment
+      shell: powershell
+      env:
+        DEPLOY_PATH: ${{ inputs.deploy_path }}
+      run: |
+        $DeployPath = $env:DEPLOY_PATH
+        $timestamp = Get-Date -Format 'yyyyMMdd_HHmmss'
+
+        # Extract project name from deploy path (e.g., "Dcc-Dev" from "C:\inetpub\wwwroot\Dcc-Dev")
+        $projectName = Split-Path -Path $DeployPath -Leaf
+
+        $BackupDir = "C:/BackupDeployment/$projectName"
+        $BackupZip = "$BackupDir/Backup-$timestamp.zip"
+
+        # Create backup directory if not exists
+        if (-not (Test-Path $BackupDir)) {
+            New-Item -Path $BackupDir -ItemType Directory -Force | Out-Null
+        }
+
+        Write-Host "========================================" -ForegroundColor Cyan
+        Write-Host "Creating backup of existing deployment..." -ForegroundColor Cyan
+
+        if (Test-Path $DeployPath) {
+            Try {
+                # Compress deployment to zip
+                Compress-Archive -Path "$DeployPath\*" -DestinationPath $BackupZip -Force -ErrorAction Stop
+                Write-Host "Backup created successfully: $BackupZip" -ForegroundColor Green
+                
+                # Verify backup file exists and is not empty
+                if (-not (Test-Path $BackupZip) -or (Get-Item $BackupZip).Length -eq 0) {
+                    throw "Backup file is invalid or empty"
+                }
+                
+                # Store backup path for later use
+                echo "BACKUP_ZIP_PATH=$BackupZip" >> $env:GITHUB_ENV
+                
+                # Clean old backups for this project (keep last 5)
+                $oldBackups = Get-ChildItem -Path $BackupDir -Filter "Backup-*.zip" | 
+                              Sort-Object LastWriteTime -Descending | 
+                              Select-Object -Skip 5
+                if ($oldBackups) {
+                    Write-Host "Cleaning up old backups for $projectName (keeping last 5)..." -ForegroundColor Yellow
+                    $oldBackups | ForEach-Object {
+                        Remove-Item $_.FullName -Force
+                        Write-Host "  Removed: $($_.Name)" -ForegroundColor Gray
+                    }
+                }
+            } Catch {
+                Write-Host "========================================" -ForegroundColor Red
+                Write-Error "CRITICAL: Failed to create backup: $_"
+                Write-Error "Deployment ABORTED for safety - cannot proceed without valid backup."
+                Write-Host "========================================" -ForegroundColor Red
+                exit 1
+            }
+        } else {
+            Write-Host "No existing deployment found at $DeployPath. Skipping backup." -ForegroundColor Yellow
+            Write-Host "This appears to be a first-time deployment." -ForegroundColor Yellow
+        }
+        Write-Host "========================================`n" -ForegroundColor Cyan
     - name: Execute IIS deployment
       shell: powershell
       env:
@@ -102,6 +161,40 @@ runs:
             }
             Write-Host "========================================`n" -ForegroundColor Cyan
         } Finally {
+            # If deployment failed, attempt rollback
+            if ($deploymentFailed) {
+                Write-Host "`n========================================" -ForegroundColor Red
+                Write-Host "DEPLOYMENT FAILED - Starting Rollback..." -ForegroundColor Red
+                Write-Host "========================================" -ForegroundColor Red
+                
+                $backupZipPath = $env:BACKUP_ZIP_PATH
+                if ($backupZipPath -and (Test-Path $backupZipPath)) {
+                    Try {
+                        Write-Host "Restoring from backup: $backupZipPath" -ForegroundColor Yellow
+                        
+                        # Delete everything in deployment folder
+                        if (Test-Path $DeployPath) {
+                            Write-Host "Clearing deployment folder..." -ForegroundColor Yellow
+                            Remove-Item -Path "$DeployPath\*" -Recurse -Force -ErrorAction Stop
+                        }
+                        
+                        # Extract backup to restore previous version completely
+                        Write-Host "Extracting backup files..." -ForegroundColor Yellow
+                        Expand-Archive -Path $backupZipPath -DestinationPath $DeployPath -Force -ErrorAction Stop
+                        
+                        Write-Host "Rollback completed successfully!" -ForegroundColor Green
+                        Write-Host "Application restored to previous version (100% from backup)." -ForegroundColor Green
+                    } Catch {
+                        Write-Error "Rollback failed: $_"
+                        Write-Error "Manual intervention required. Backup location: $backupZipPath"
+                    }
+                } else {
+                    Write-Warning "No backup available for rollback."
+                    Write-Warning "Manual intervention required."
+                }
+                Write-Host "========================================`n" -ForegroundColor Red
+            }
+            
             # Always try to start the app pool
             Write-Host "Attempting to start App Pool: $AppPool" -ForegroundColor Cyan
             Try {
