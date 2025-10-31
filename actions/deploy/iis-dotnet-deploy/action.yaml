@@ -154,12 +154,20 @@ runs:
         DEPLOY_PATH: ${{ inputs.deploy_path }}
         SOURCE_PATH: ${{ inputs.source_path }}
       run: |
+        Write-Host "`n========================================" -ForegroundColor Cyan
+        Write-Host "Starting Deployment Step..." -ForegroundColor Cyan
+        Write-Host "========================================" -ForegroundColor Cyan
+
         $AppPool = $env:APP_POOL
         $DeployPath = $env:DEPLOY_PATH
         $SourcePath = $env:SOURCE_PATH
 
+        Write-Host "App Pool: $AppPool" -ForegroundColor Gray
+        Write-Host "Deploy Path: $DeployPath" -ForegroundColor Gray
+        Write-Host "Source Path: $SourcePath" -ForegroundColor Gray
+
         # Stop App Pool before deployment
-        Write-Host "Stopping App Pool: $AppPool" -ForegroundColor Yellow
+        Write-Host "`nStopping App Pool: $AppPool" -ForegroundColor Yellow
         Try {
             Stop-WebAppPool -Name $AppPool -ErrorAction Stop
             Start-Sleep -Seconds 5
