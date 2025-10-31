@@ -18,17 +18,27 @@ inputs:
 runs:
   using: "composite"
   steps:
-    - name: Restore dependencies
+    - name: Find .csproj file
       shell: powershell
       run: |
         Set-Location -Path ${{ inputs.source_code_path }}
-        dotnet restore
+        $csprojFile = Get-ChildItem -Filter "*.csproj" | Select-Object -First 1
+        if ($null -eq $csprojFile) {
+          Write-Error "No .csproj file found in ${{ inputs.source_code_path }}"
+          exit 1
+        }
+        Write-Host "Found .csproj file: $($csprojFile.FullName)"
+        echo "CSPROJ_PATH=$($csprojFile.FullName)" >> $env:GITHUB_ENV
+
+    - name: Restore dependencies
+      shell: powershell
+      run: |
+        dotnet restore "$env:CSPROJ_PATH"
 
     - name: Build project
       shell: powershell
       run: |
-        Set-Location -Path ${{ inputs.source_code_path }}
-        dotnet build --configuration ${{ inputs.configuration }} --no-restore
+        dotnet build "$env:CSPROJ_PATH" --configuration ${{ inputs.configuration }} --no-restore
 
     - name: Run tests
       shell: powershell
@@ -39,6 +49,5 @@ runs:
     - name: Publish app
       shell: powershell
       run: |
-        Set-Location -Path ${{ inputs.source_code_path }}
-        dotnet publish -c ${{ inputs.configuration }} -o ${{ inputs.publish_output_path }}
+        dotnet publish "$env:CSPROJ_PATH" -c ${{ inputs.configuration }} -o ${{ inputs.publish_output_path }}
         ls
