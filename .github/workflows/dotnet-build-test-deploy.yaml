@@ -43,12 +43,12 @@ jobs:
   build_and_deploy:
     runs-on: ["self-hosted", "${{ inputs.run_on }}"]
     steps:
-      # - name: Checkout project repository
-      #   uses: actions/checkout@v4
-      #   with:
-      #     path: project
-      #     fetch-depth: 1
-      #     submodules: false
+      - name: Checkout project repository
+        uses: actions/checkout@v4
+        with:
+          path: project
+          fetch-depth: 1
+          submodules: false
 
       - name: Checkout reuse-actions repository
         uses: actions/checkout@v4
@@ -58,25 +58,25 @@ jobs:
           path: reuse-actions
           ref: main
 
-      # - name: Build .NET Application
-      #   uses: ./reuse-actions/actions/build/dotnet-build
-      #   with:
-      #     source_code_path: "project/${{ inputs.source_code_path }}"
-      #     configuration: "Release"
-      #     publish_output_path: "${{ inputs.publish_output_path }}"
+      - name: Build .NET Application
+        uses: ./reuse-actions/actions/build/dotnet-build
+        with:
+          source_code_path: "project/${{ inputs.source_code_path }}"
+          configuration: "Release"
+          publish_output_path: "${{ inputs.publish_output_path }}"
 
       - name: Backup existing deployment
         uses: ./reuse-actions/actions/backup/iis-backup
         with:
           deploy_path: ${{ inputs.deploy_path }}
 
-      # - name: Deploy to IIS
-      #   uses: ./reuse-actions/actions/deploy/iis-deploy-with-rollback
-      #   with:
-      #     exclude_files: ${{ inputs.exclude_files }}
-      #     app_pool: ${{ inputs.app_pool }}
-      #     deploy_path: ${{ inputs.deploy_path }}
-      #     source_path: "project/${{ inputs.source_code_path }}/${{ inputs.publish_output_path }}"
+      - name: Deploy to IIS
+        uses: ./reuse-actions/actions/deploy/iis-deploy-with-rollback
+        with:
+          exclude_files: ${{ inputs.exclude_files }}
+          app_pool: ${{ inputs.app_pool }}
+          deploy_path: ${{ inputs.deploy_path }}
+          source_path: "project/${{ inputs.source_code_path }}/${{ inputs.publish_output_path }}"
 
       # - name: Create Semantic Version Tag
       #   uses: ./reuse-actions/actions/git/create-sematic-tag

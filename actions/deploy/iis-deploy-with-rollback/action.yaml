@@ -100,7 +100,7 @@ runs:
             Write-Host "========================================" -ForegroundColor Cyan
             
             robocopy @robocopyArgs
-            $rc = $LASTEXITCODE
+            $rc = $env:LASTEXITCODE
             
             Write-Host "`nRobocopy exit code: $rc" -ForegroundColor $(if ($rc -le 7) { "Green" } else { "Red" })
             
@@ -165,7 +165,7 @@ runs:
                             "/MIR", "/R:3", "/W:5", "/NFL", "/NDL", "/NP"
                         )
                         robocopy @rollbackArgs
-                        $rollbackRc = $LASTEXITCODE
+                        $rollbackRc = $env:LASTEXITCODE
                         
                         # Cleanup temp
                         if (Test-Path $tempRestorePath) {
