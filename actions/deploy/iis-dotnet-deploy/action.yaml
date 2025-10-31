@@ -30,8 +30,9 @@ runs:
         $DeployPath = $env:DEPLOY_PATH
         $timestamp = Get-Date -Format 'yyyyMMdd_HHmmss'
 
-        # Extract project name from deploy path (e.g., "Dcc-Dev" from "C:\inetpub\wwwroot\Dcc-Dev")
+        # Extract project name from deploy path and replace spaces with underscores
         $projectName = Split-Path -Path $DeployPath -Leaf
+        $projectName = $projectName -replace ' ', '_'
 
         $BackupDir = "C:/BackupDeployment/$projectName"
         $BackupPath = "$BackupDir/Backup-$timestamp"
