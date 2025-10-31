@@ -112,6 +112,7 @@ runs:
                     
                     # Clean old backups for this project (keep last 5)
                     Try {
+                        Write-Host "Checking for old backups to clean..." -ForegroundColor Gray
                         $oldBackups = Get-ChildItem -Path $BackupDir -Filter "Backup-*.zip" -ErrorAction SilentlyContinue | 
                                       Sort-Object LastWriteTime -Descending | 
                                       Select-Object -Skip 5
@@ -121,11 +122,15 @@ runs:
                                 Remove-Item $_.FullName -Force -ErrorAction SilentlyContinue
                                 Write-Host "  Removed: $($_.Name)" -ForegroundColor Gray
                             }
+                        } else {
+                            Write-Host "No old backups to clean (5 or fewer backups exist)" -ForegroundColor Gray
                         }
                     } Catch {
                         Write-Warning "Could not clean old backups: $_"
                         Write-Warning "Continuing anyway..."
                     }
+                    
+                    Write-Host "Backup step completed successfully!" -ForegroundColor Green
                 } else {
                     throw "Robocopy failed with exit code: $rc"
                 }
