@@ -100,23 +100,23 @@ runs:
                     # Set output
                     Write-Output "BACKUP_PATH=$BackupZip" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
 
-                    Write-Host "`n========================================" -ForegroundColor Cyan
-                    Write-Host "Backup completed successfully!" -ForegroundColor Green
-                    Write-Host "Location: $BackupZip" -ForegroundColor Cyan
-                    Write-Host "========================================`n" -ForegroundColor Cyan
+                    # Write-Host "`n========================================" -ForegroundColor Cyan
+                    # Write-Host "Backup completed successfully!" -ForegroundColor Green
+                    # Write-Host "Location: $BackupZip" -ForegroundColor Cyan
+                    # Write-Host "========================================`n" -ForegroundColor Cyan
                 } else {
                     throw "Robocopy failed with exit code: $rc"
                 }
             } Catch {
-                Write-Host "`n========================================" -ForegroundColor Red
-                Write-Error "CRITICAL: Backup failed: $_"
-                Write-Host "========================================`n" -ForegroundColor Red
+                # Write-Host "`n========================================" -ForegroundColor Red
+                # Write-Error "CRITICAL: Backup failed: $_"
+                # Write-Host "========================================`n" -ForegroundColor Red
                 exit 1
             }
         } else {
-            Write-Host "`nNo existing deployment found at: $DeployPath" -ForegroundColor Yellow
-            Write-Host "This appears to be a first-time deployment. Skipping backup." -ForegroundColor Yellow
-            Write-Host "========================================`n" -ForegroundColor Cyan
+            # Write-Host "`nNo existing deployment found at: $DeployPath" -ForegroundColor Yellow
+            # Write-Host "This appears to be a first-time deployment. Skipping backup." -ForegroundColor Yellow
+            # Write-Host "========================================`n" -ForegroundColor Cyan
         }
 
         exit 0
