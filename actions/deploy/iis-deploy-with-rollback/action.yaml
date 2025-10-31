@@ -55,15 +55,15 @@ runs:
                 $latestBackup = $allBackups | Sort-Object LastWriteTime -Descending | Select-Object -First 1
                 $BackupZip = $latestBackup.FullName
                 
-                Write-Host "✓ Found $($allBackups.Count) backup(s)" -ForegroundColor Green
-                Write-Host "✓ Latest backup: $($latestBackup.Name)" -ForegroundColor Green
+                Write-Host "Found $($allBackups.Count) backup(s)" -ForegroundColor Green
+                Write-Host "Latest backup: $($latestBackup.Name)" -ForegroundColor Green
                 Write-Host "  Created: $($latestBackup.LastWriteTime.ToString('yyyy-MM-dd HH:mm:ss'))" -ForegroundColor Gray
                 Write-Host "  Size: $([math]::Round($latestBackup.Length / 1MB, 2)) MB" -ForegroundColor Gray
             } else {
-                Write-Host "⚠ No backup files found (first-time deployment)" -ForegroundColor Yellow
+                Write-Host "No backup files found (first-time deployment)" -ForegroundColor Yellow
             }
         } else {
-            Write-Host "⚠ No backup directory found (first-time deployment)" -ForegroundColor Yellow
+            Write-Host "No backup directory found (first-time deployment)" -ForegroundColor Yellow
         }
 
         # Stop App Pool
@@ -71,7 +71,7 @@ runs:
         Try {
             Stop-WebAppPool -Name $AppPool -ErrorAction Stop
             Start-Sleep -Seconds 5
-            Write-Host "✓ App Pool stopped" -ForegroundColor Green
+            Write-Host "App Pool stopped" -ForegroundColor Green
         } Catch {
             Write-Warning "App Pool could not be stopped or already stopped."
         }
@@ -116,10 +116,10 @@ runs:
                     7 { "Files copied, mismatches and extras present" }
                     default { "Success" }
                 }
-                Write-Host "✓ Status: SUCCESS - $exitCodeMeaning" -ForegroundColor Green
+                Write-Host "Status: SUCCESS - $exitCodeMeaning" -ForegroundColor Green
             } else {
                 $deploymentFailed = $true
-                Write-Host "✗ Status: FAILED - Robocopy encountered errors (code $rc > 7)" -ForegroundColor Red
+                Write-Host "Status: FAILED - Robocopy encountered errors (code $rc > 7)" -ForegroundColor Red
                 
                 if (Test-Path $logFile) {
                     Write-Host "`nLast 20 lines of log:" -ForegroundColor Yellow
@@ -173,13 +173,13 @@ runs:
                         }
                         
                         if ($rollbackRc -le 7) {
-                            Write-Host "✓ Rollback completed successfully!" -ForegroundColor Green
+                            Write-Host "Rollback completed successfully!" -ForegroundColor Green
                             Write-Host "Application restored to previous version." -ForegroundColor Green
                         } else {
                             throw "Robocopy rollback failed with exit code: $rollbackRc"
                         }
                     } Catch {
-                        Write-Error "✗ Rollback failed: $_"
+                        Write-Error "Rollback failed: $_"
                         Write-Error "Manual intervention required!"
                         Write-Error "Backup location: $BackupZip"
                     }
@@ -194,9 +194,9 @@ runs:
             Write-Host "Starting App Pool: $AppPool..." -ForegroundColor Cyan
             Try {
                 Start-WebAppPool -Name $AppPool -ErrorAction Stop
-                Write-Host "✓ App Pool '$AppPool' started successfully" -ForegroundColor Green
+                Write-Host "App Pool '$AppPool' started successfully" -ForegroundColor Green
             } Catch {
-                Write-Error "✗ App Pool '$AppPool' could not be started: $_"
+                Write-Error "App Pool '$AppPool' could not be started: $_"
                 Write-Warning "Please check IIS Manager manually!"
             }
 
